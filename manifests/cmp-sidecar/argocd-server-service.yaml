@@ -1,0 +1,5 @@
+- op: remove
+  path: /spec/ports/0
+- op: add
+  path: /spec/type
+  value: LoadBalancer

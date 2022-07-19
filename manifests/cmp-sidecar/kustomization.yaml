@@ -3,13 +3,34 @@ kind: Kustomization
 
 images:
   - name: quay.io/argoproj/argocd
-    newTag: v2.4.0
+    newTag: v2.4.6
 
 # Note: Versions below 2.4.0 will not always work if trying to use AVP with Helm
 # Fixed in https://github.com/argoproj/argo-cd/pull/9319
 resources:
-- https://github.com/argoproj/argo-cd//manifests/cluster-install?ref=v2.4.0
+- https://github.com/argoproj/argo-cd//manifests/cluster-install?ref=v2.4.6
 - cmp-plugin.yaml
 
 patchesStrategicMerge:
 - argocd-repo-server.yaml
+
+patches:
+# AVP_TYPE: gcpsecretmanager
+- target:
+    version: v1
+    kind: Deployment
+    name: argocd-repo-server
+  patch: |-
+
+    - op: add
+      path: /spec/template/spec/containers/4/env/-
+      value:
+        name: AVP_TYPE
+        value: gcpsecretmanager
+
+# Remove the http port to keep EIS happy
+- target:
+    version: v1
+    kind: Service
+    name: argocd-server
+  path: argocd-server-service.yaml

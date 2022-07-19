@@ -25,13 +25,34 @@ spec:
         image: registry.access.redhat.com/ubi8
         env:
           - name: AVP_VERSION
-            value: 1.11.0
+            value: 1.12.0
+          - name: HELMFILE_VERSION
+            value: 0.145.2
+          - name: SOPS_VERSION
+            value: v3.7.3
+          - name: AGE_VERSION
+            value: v1.0.0
         command: [sh, -c]
         args:
-          - >-
+          - |
             curl -L https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v$(AVP_VERSION)/argocd-vault-plugin_$(AVP_VERSION)_linux_amd64 -o argocd-vault-plugin &&
             chmod +x argocd-vault-plugin &&
             mv argocd-vault-plugin /custom-tools/
+
+            curl -L https://github.com/helmfile/helmfile/releases/download/v$(HELMFILE_VERSION)/helmfile_$(HELMFILE_VERSION)_linux_amd64.tar.gz -o helmfile.tar.gz &&
+            tar -xvf helmfile.tar.gz helmfile &&
+            chmod +x helmfile &&
+            mv helmfile /custom-tools
+
+            curl -L https://github.com/mozilla/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64 -o sops &&
+            chmod +x sops &&
+            mv sops /custom-tools
+
+            curl -L https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-amd64.tar.gz -o age.tar.gz &&
+            tar -xvf age.tar.gz age/age age/age-keygen &&
+            chmod +x age/age age/age-keygen
+            mv age/age /custom-tools
+            mv age/age-keygen /custom-tools
 
         volumeMounts:
           - mountPath: /custom-tools
@@ -112,3 +133,36 @@ spec:
           - name: custom-tools
             subPath: argocd-vault-plugin
             mountPath: /usr/local/bin/argocd-vault-plugin
+      # helmfile
+      - name: helmfile
+        command: [/var/run/argocd/argocd-cmp-server]
+        image: quay.io/argoproj/argocd:v2.4.0
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        volumeMounts:
+          - mountPath: /var/run/argocd
+            name: var-files
+          - mountPath: /home/argocd/cmp-server/plugins
+            name: plugins
+          - mountPath: /tmp
+            name: tmp
+
+          # Register plugins into sidecar
+          - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+            subPath: helmfile.yaml
+            name: cmp-plugin
+
+          # Important: Mount tools into $PATH
+          - name: custom-tools
+            subPath: helmfile
+            mountPath: /usr/local/bin/helmfile
+          - name: custom-tools
+            subPath: sops
+            mountPath: /usr/local/bin/sops
+          - name: custom-tools
+            subPath: age
+            mountPath: /usr/local/bin/age
+          - name: custom-tools
+            subPath: age-keygen
+            mountPath: /usr/local/bin/age-keygen
